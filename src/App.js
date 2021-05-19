@@ -20,30 +20,42 @@ const getPipelinesJobs = async () => {
 };
 
 function App() {
-  const [taskDetail, setTaskDetail] = useState(null);
+  const [currentSelection, setCurrentSelection] = useState({
+    job: null,
+    task: null,
+  });
+
+  const pipelinesJobsResult = useQuery("pipelines/jobs", getPipelinesJobs, {
+    refetchInterval: 2000,
+  });
 
   return (
     <div className="grid grid-cols-12 h-full">
       <div className="col-span-3 bg-gray-700 p-4">
         <h2 className="text-2xl text-green-300 mb-4">Pipelines</h2>
-        <PipelineList />
+        <PipelineList pipelinesJobsResult={pipelinesJobsResult} />
       </div>
       <div className="col-span-3 bg-gray-600 p-4 overflow-hidden overflow-y-scroll">
         <h2 className="text-2xl text-green-400 mb-4">Jobs</h2>
-        <JobsList setTaskDetail={setTaskDetail} />
+        <JobsList
+          pipelinesJobsResult={pipelinesJobsResult}
+          setCurrentSelection={setCurrentSelection}
+        />
       </div>
       <div className="col-span-6 bg-gray-700 p-4">
-        <TaskDetail task={taskDetail} />
+        {currentSelection.task ? (
+          <TaskDetail
+            pipelinesJobsResult={pipelinesJobsResult}
+            currentSelection={currentSelection}
+          />
+        ) : null}
       </div>
     </div>
   );
 }
 
-const PipelineList = () => {
-  const { isLoading, isError, data, error } = useQuery(
-    "pipelines",
-    getPipelines
-  );
+const PipelineList = ({ pipelinesJobsResult }) => {
+  const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   const queryClient = useQueryClient();
 
@@ -60,7 +72,7 @@ const PipelineList = () => {
       }),
     {
       onSuccess: () => {
-        queryClient.invalidateQueries("jobs");
+        queryClient.invalidateQueries("pipelines/jobs");
       },
     }
   );
@@ -75,42 +87,38 @@ const PipelineList = () => {
 
   return (
     <div className="">
-      {data.map((pipeline) => (
-        <div
-          key={pipeline.pipeline}
-          className="p-4 mb-4 border-gray-400 border-2"
-        >
-          <div className="text-lg text-white mb-4">{pipeline.pipeline}</div>
-          {pipeline.running ? (
+      {data.pipelines?.map((pipeline) => {
+        const startDisabled =
+          startMutation.isLoading || (pipeline.running && !pipeline.concurrent);
+
+        return (
+          <div
+            key={pipeline.pipeline}
+            className="p-4 mb-4 border-gray-400 border-2 rounded-md"
+          >
+            <div className="font-extralight text-lg text-white mb-4">
+              {pipeline.pipeline}
+            </div>
             <button
-              className="border-2 border-gray-400 text-white w-8 h-8"
-              disabled={startMutation.isLoading}
-            >
-              ◼︎
-            </button>
-          ) : (
-            <button
-              className="border-2 border-gray-400 text-white w-8 h-8"
-              disabled={startMutation.isLoading}
+              className={`${
+                startDisabled ? "bg-gray-500" : "bg-green-600"
+              } text-white py-2 px-3`}
+              disabled={startDisabled}
               onClick={() => {
                 startMutation.mutate(pipeline.pipeline);
               }}
             >
-              ▶︎
+              ▶︎ Start
             </button>
-          )}
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 };
 
-const JobsList = ({ setTaskDetail }) => {
-  const { isLoading, isError, data, error } = useQuery(
-    "jobs",
-    getPipelinesJobs,
-    { refetchInterval: 2000 }
-  );
+const JobsList = ({ pipelinesJobsResult, setCurrentSelection }) => {
+  const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   if (isLoading) {
     return <span>Loading...</span>;
@@ -122,14 +130,20 @@ const JobsList = ({ setTaskDetail }) => {
 
   return (
     <div className="">
-      {data.map((job) => (
+      {data.jobs?.map((job) => (
         <div
           key={job.id}
-          className={`p-4 mb-4 border-2 ${
-            job.completed ? "border-green-600" : "border-yellow-500"
+          className={`p-4 mb-4 border-2 rounded-md ${
+            job.errored
+              ? "border-red-500"
+              : job.completed
+              ? "border-green-600"
+              : "border-yellow-500"
           }`}
         >
-          <div className="text-lg text-white mb-2">{job.pipeline}</div>
+          <div className="font-extralight text-lg text-white mb-2">
+            {job.pipeline}
+          </div>
           <div className="mb-2 grid grid-cols-2 gap-4">
             <div>
               <span className="text-sm mr-2 text-indigo-400">Start</span>
@@ -150,8 +164,9 @@ const JobsList = ({ setTaskDetail }) => {
             {job.tasks.map((task) => (
               <button
                 key={task.name}
-                // TODO task details are not updated on refetches this way
-                onClick={() => setTaskDetail(task)}
+                onClick={() =>
+                  setCurrentSelection({ job: job.id, task: task.name })
+                }
                 title={task.name}
                 className={`inline-block w-5 h-5 mr-3 rounded-md ${taskBg(
                   task.status
@@ -165,7 +180,20 @@ const JobsList = ({ setTaskDetail }) => {
   );
 };
 
-const TaskDetail = ({ task }) => {
+const TaskDetail = ({ pipelinesJobsResult, currentSelection }) => {
+  if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
+    return null;
+  }
+
+  let task = null;
+  if (currentSelection.job && currentSelection.task) {
+    const job = pipelinesJobsResult.data.jobs?.find(
+      (job) => job.id === currentSelection.job
+    );
+    if (job) {
+      task = job.tasks.find((task) => task.name === currentSelection.task);
+    }
+  }
   if (!task) {
     return null;
   }
@@ -174,6 +202,13 @@ const TaskDetail = ({ task }) => {
     <div>
       <div className="text-2xl text-gray-300 mb-4">
         <span className="text-green-500">Task</span> {task.name}
+        <span
+          className={`text-xs p-1 ml-2 font-semibold uppercase align-middle rounded-lg ${taskBg(
+            task.status
+          )}`}
+        >
+          {task.status}
+        </span>
       </div>
 
       {task.errored && (
