@@ -3,23 +3,29 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
 import { useState } from "react";
 
-const getPipelines = async () => {
-  const response = await fetch("/pipelines");
-  if (!response.ok) {
-    throw new Error("Network response was not ok");
+const authHeader = () => {
+  const token = process.env.REACT_APP_AUTH_TOKEN;
+  if (!token) {
+    return null;
   }
-  return response.json();
+  return {
+    Authorization: `Bearer ${token}`,
+  };
 };
 
 const getPipelinesJobs = async () => {
-  const response = await fetch("/pipelines/jobs");
+  const response = await fetch("/pipelines/jobs", {
+    headers: {
+      ...authHeader(),
+    },
+  });
   if (!response.ok) {
     throw new Error("Network response was not ok");
   }
   return response.json();
 };
 
-function App() {
+const App = () => {
   const [currentSelection, setCurrentSelection] = useState({
     job: null,
     task: null,
@@ -52,7 +58,7 @@ function App() {
       </div>
     </div>
   );
-}
+};
 
 const PipelineList = ({ pipelinesJobsResult }) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
@@ -64,6 +70,7 @@ const PipelineList = ({ pipelinesJobsResult }) => {
       fetch("/pipelines/schedule", {
         headers: {
           "Content-Type": "application/json",
+          ...authHeader(),
         },
         method: "POST",
         body: JSON.stringify({
