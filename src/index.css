@@ -4,6 +4,6 @@
 
 html,
 body,
-#root {
+.prunner-ui {
   height: 100%;
 }

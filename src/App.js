@@ -13,8 +13,8 @@ const authHeader = () => {
   };
 };
 
-const getPipelinesJobs = async () => {
-  const response = await fetch("/pipelines/jobs", {
+const getPipelinesJobs = (apiBaseUrl) => async () => {
+  const response = await fetch(`${apiBaseUrl}pipelines/jobs`, {
     headers: {
       ...authHeader(),
     },
@@ -25,15 +25,19 @@ const getPipelinesJobs = async () => {
   return response.json();
 };
 
-const App = () => {
+const App = ({ apiBaseUrl = "/", refreshInterval = 5000 }) => {
   const [currentSelection, setCurrentSelection] = useState({
     job: null,
     task: null,
   });
 
-  const pipelinesJobsResult = useQuery("pipelines/jobs", getPipelinesJobs, {
-    refetchInterval: 2000,
-  });
+  const pipelinesJobsResult = useQuery(
+    "pipelines/jobs",
+    getPipelinesJobs(apiBaseUrl),
+    {
+      refetchInterval: refreshInterval,
+    }
+  );
 
   return (
     <div className="grid grid-cols-12 h-full">
