@@ -12,11 +12,12 @@ const authHeader = (token) => {
 };
 
 const getPipelinesJobs =
-  ({ apiBaseUrl, authToken }) =>
+  ({ apiBaseUrl, authToken, extraApiHeaders }) =>
   async () => {
     const response = await fetch(`${apiBaseUrl}pipelines/jobs`, {
       headers: {
         ...authHeader(authToken),
+        ...extraApiHeaders,
       },
     });
     if (!response.ok) {
@@ -26,12 +27,13 @@ const getPipelinesJobs =
   };
 
 const postPipelinesSchedule =
-  ({ apiBaseUrl, authToken }) =>
+  ({ apiBaseUrl, authToken, extraApiHeaders }) =>
   (pipeline) =>
     fetch(`${apiBaseUrl}pipelines/schedule`, {
       headers: {
         "Content-Type": "application/json",
         ...authHeader(authToken),
+        ...extraApiHeaders,
       },
       method: "POST",
       body: JSON.stringify({
@@ -46,7 +48,11 @@ const App = ({
   refreshInterval = 5000,
   // Explicitly set an auth token (e.g. inject via HTML to prop for dev)
   authToken,
+  // Set additional headers to send for API requests (e.g. CSRF token)
+  extraApiHeaders = {},
 }) => {
+  const apiOpts = { apiBaseUrl, authToken, extraApiHeaders };
+
   const [currentSelection, setCurrentSelection] = useState({
     job: null,
     task: null,
@@ -54,21 +60,18 @@ const App = ({
 
   const pipelinesJobsResult = useQuery(
     "pipelines/jobs",
-    getPipelinesJobs({ apiBaseUrl, authToken }),
+    getPipelinesJobs(apiOpts),
     {
       refetchInterval: refreshInterval,
     }
   );
 
   const queryClient = useQueryClient();
-  const startMutation = useMutation(
-    postPipelinesSchedule({ apiBaseUrl, authToken }),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries("pipelines/jobs");
-      },
-    }
-  );
+  const startMutation = useMutation(postPipelinesSchedule(apiOpts), {
+    onSuccess: () => {
+      queryClient.invalidateQueries("pipelines/jobs");
+    },
+  });
 
   return (
     <div className="grid grid-cols-12 h-full">

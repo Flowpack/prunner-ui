@@ -2,7 +2,7 @@
   "scripts": {
     "start": "snowpack dev",
     "build": "snowpack build",
-    "test": "echo \"This template does not include a test runner by default.\" && exit 1"
+    "copy": "cp build/index.css build/dist/index.js* ../neos/DistributionPackages/Flowpack.Prunner/Resources/Public/prunner-ui/"
   },
   "devDependencies": {
     "@snowpack/plugin-postcss": "^1.2.2",
