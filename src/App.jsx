@@ -1,10 +1,8 @@
-import "./App.css";
+import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
-import { useState } from "react";
 
-const authHeader = () => {
-  const token = process.env.REACT_APP_AUTH_TOKEN;
+const authHeader = (token) => {
   if (!token) {
     return null;
   }
@@ -13,19 +11,42 @@ const authHeader = () => {
   };
 };
 
-const getPipelinesJobs = (apiBaseUrl) => async () => {
-  const response = await fetch(`${apiBaseUrl}pipelines/jobs`, {
-    headers: {
-      ...authHeader(),
-    },
-  });
-  if (!response.ok) {
-    throw new Error("Network response was not ok");
-  }
-  return response.json();
-};
+const getPipelinesJobs =
+  ({ apiBaseUrl, authToken }) =>
+  async () => {
+    const response = await fetch(`${apiBaseUrl}pipelines/jobs`, {
+      headers: {
+        ...authHeader(authToken),
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+    return response.json();
+  };
 
-const App = ({ apiBaseUrl = "/", refreshInterval = 5000 }) => {
+const postPipelinesSchedule =
+  ({ apiBaseUrl, authToken }) =>
+  (pipeline) =>
+    fetch(`${apiBaseUrl}pipelines/schedule`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(authToken),
+      },
+      method: "POST",
+      body: JSON.stringify({
+        pipeline,
+      }),
+    });
+
+const App = ({
+  // Base URL / path for API requests to prunner
+  apiBaseUrl = "/",
+  // Polling interval in ms
+  refreshInterval = 5000,
+  // Explicitly set an auth token (e.g. inject via HTML to prop for dev)
+  authToken,
+}) => {
   const [currentSelection, setCurrentSelection] = useState({
     job: null,
     task: null,
@@ -33,9 +54,19 @@ const App = ({ apiBaseUrl = "/", refreshInterval = 5000 }) => {
 
   const pipelinesJobsResult = useQuery(
     "pipelines/jobs",
-    getPipelinesJobs(apiBaseUrl),
+    getPipelinesJobs({ apiBaseUrl, authToken }),
     {
       refetchInterval: refreshInterval,
+    }
+  );
+
+  const queryClient = useQueryClient();
+  const startMutation = useMutation(
+    postPipelinesSchedule({ apiBaseUrl, authToken }),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries("pipelines/jobs");
+      },
     }
   );
 
@@ -43,7 +74,10 @@ const App = ({ apiBaseUrl = "/", refreshInterval = 5000 }) => {
     <div className="grid grid-cols-12 h-full">
       <div className="col-span-3 bg-gray-700 p-4">
         <h2 className="text-2xl text-green-300 mb-4">Pipelines</h2>
-        <PipelineList pipelinesJobsResult={pipelinesJobsResult} />
+        <PipelineList
+          startMutation={startMutation}
+          pipelinesJobsResult={pipelinesJobsResult}
+        />
       </div>
       <div className="col-span-3 bg-gray-600 p-4 overflow-hidden overflow-y-scroll">
         <h2 className="text-2xl text-green-400 mb-4">Jobs</h2>
@@ -64,29 +98,8 @@ const App = ({ apiBaseUrl = "/", refreshInterval = 5000 }) => {
   );
 };
 
-const PipelineList = ({ pipelinesJobsResult }) => {
+const PipelineList = ({ startMutation, pipelinesJobsResult }) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
-
-  const queryClient = useQueryClient();
-
-  const startMutation = useMutation(
-    (pipeline) =>
-      fetch("/pipelines/schedule", {
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader(),
-        },
-        method: "POST",
-        body: JSON.stringify({
-          pipeline,
-        }),
-      }),
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries("pipelines/jobs");
-      },
-    }
-  );
 
   if (isLoading) {
     return <span>Loading...</span>;
