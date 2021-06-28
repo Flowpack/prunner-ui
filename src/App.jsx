@@ -116,7 +116,7 @@ const PipelineList = ({ startMutation, pipelinesJobsResult }) => {
     <div className="">
       {data.pipelines?.map((pipeline) => {
         const startDisabled =
-          startMutation.isLoading || (pipeline.running && !pipeline.concurrent);
+          startMutation.isLoading || !pipeline.schedulable;
 
         return (
           <div
@@ -165,27 +165,40 @@ const JobsList = ({ pipelinesJobsResult, setCurrentSelection }) => {
               ? "border-red-500"
               : job.completed
               ? "border-green-600"
-              : "border-yellow-500"
+              : job.canceled ?"border-gray-400" :"border-yellow-500"
           }`}
         >
           <div className="font-extralight text-lg text-white mb-2">
             {job.pipeline}
           </div>
           <div className="mb-2 grid grid-cols-2 gap-4">
+            {job.start ? (
             <div>
               <span className="text-sm mr-2 text-indigo-400">Start</span>
               <span className="text-sm text-white mr-4">
                 {format(new Date(job.start), "HH:mm:ss")}
               </span>
             </div>
-            {job.completed && (
+            ) : (
+              <div>
+                <span className="text-sm mr-2 text-indigo-400">Queued</span>
+                <span className="text-sm text-white mr-4">
+                  {format(new Date(job.created), "HH:mm:ss")}
+                </span>
+              </div>
+              )}
+            {job.completed ? (
               <div>
                 <span className="text-sm mr-2 text-indigo-400">End</span>
                 <span className="text-sm text-white">
                   {format(new Date(job.end), "HH:mm:ss")}
                 </span>
               </div>
-            )}
+            ) : job.canceled ? (
+              <div>
+                <span className="text-sm mr-2 text-indigo-400">Canceled</span>
+                </div>
+            ) : null}
           </div>
           <div>
             {job.tasks.map((task) => (
@@ -277,7 +290,7 @@ function taskBg(status) {
     case "error":
       return "bg-red-500";
     default:
-      return "bg-gray-300";
+      return "bg-gray-500";
   }
 }
 
