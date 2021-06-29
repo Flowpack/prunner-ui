@@ -41,6 +41,21 @@ const postPipelinesSchedule =
       }),
     });
 
+const getJobLogs =
+  ({ apiBaseUrl, authToken, extraApiHeaders }, id, task) =>
+  async () => {
+    const response = await fetch(`${apiBaseUrl}job/logs?id=${encodeURIComponent(id)}&task=${encodeURIComponent(task)}`, {
+      headers: {
+        ...authHeader(authToken),
+        ...extraApiHeaders,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+    return response.json();
+  };
+
 const App = ({
   // Base URL / path for API requests to prunner
   apiBaseUrl = "/",
@@ -94,6 +109,8 @@ const App = ({
           <TaskDetail
             pipelinesJobsResult={pipelinesJobsResult}
             currentSelection={currentSelection}
+            apiOpts={apiOpts}
+            refreshInterval={refreshInterval}
           />
         ) : null}
       </div>
@@ -220,14 +237,14 @@ const JobsList = ({ pipelinesJobsResult, setCurrentSelection }) => {
   );
 };
 
-const TaskDetail = ({ pipelinesJobsResult, currentSelection }) => {
+const TaskDetail = ({ pipelinesJobsResult, currentSelection, apiOpts, refreshInterval }) => {
   if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
     return null;
   }
 
-  let task = null;
+  let task = null, job = null;
   if (currentSelection.job && currentSelection.task) {
-    const job = pipelinesJobsResult.data.jobs?.find(
+    job = pipelinesJobsResult.data.jobs?.find(
       (job) => job.id === currentSelection.job
     );
     if (job) {
@@ -260,26 +277,43 @@ const TaskDetail = ({ pipelinesJobsResult, currentSelection }) => {
         </div>
       )}
 
-      {task.stdout && (
-        <div className="mb-4">
-          <div className="text-base text-indigo-500 mb-2">STDOUT</div>
-          <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
-            {task.stdout}
-          </div>
-        </div>
-      )}
-
-      {task.stderr && (
-        <div className="mb-4">
-          <div className="text-base text-indigo-500 mb-2">STDERR</div>
-          <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
-            {task.stderr}
-          </div>
-        </div>
-      )}
+      <TaskLogs job={job} task={task} apiOpts={apiOpts} refreshInterval={refreshInterval} />
     </div>
   );
 };
+
+const TaskLogs = ({job, task, apiOpts, refreshInterval}) => {
+
+  const jobLogsResult = useQuery(
+    ["job/logs", job.id, task.name],
+    getJobLogs(apiOpts, job.id, task.name),
+    {
+      refetchInterval: refreshInterval,
+    }
+  );
+
+  return (<>
+    <div className="mb-4">
+      <div className="text-base text-indigo-500 mb-2">STDOUT</div>
+      <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
+        {jobLogsResult.isLoading ? "..." : jobLogsResult.data.stdout}
+      </div>
+    </div>
+    <div className="mb-4">
+      <div className="text-base text-indigo-500 mb-2">STDERR</div>
+      <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
+      {jobLogsResult.isLoading ? "..." : jobLogsResult.data.stderr}
+      </div>
+    </div>
+  </>)
+}
+
+const Spinner = () => (
+  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+)
 
 function taskBg(status) {
   switch (status) {
