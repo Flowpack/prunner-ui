@@ -277,6 +277,15 @@ const TaskDetail = ({ pipelinesJobsResult, currentSelection, apiOpts, refreshInt
         </div>
       )}
 
+      {job.variables &&
+        <div className="mb-4">
+          <div className="text-base text-indigo-500 mb-2">Variables</div>
+          <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
+            {JSON.stringify(job.variables, null, 4)}
+          </div>
+        </div>
+      }
+
       <TaskLogs job={job} task={task} apiOpts={apiOpts} refreshInterval={refreshInterval} />
     </div>
   );
