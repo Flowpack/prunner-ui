@@ -19,6 +19,28 @@ A minimalistic React UI to start and view pipelines, jobs and task details.
 
 A Neos/Flow PHP package providing a backend module for the current pipeline state, and a PHP API.
 
+## Development
+
+### Requirements
+
+* Node.js (>= 12)
+* Yarn
+
+### Running locally
+
+```bash
+yarn install
+SNOWPACK_PUBLIC_API_AUTH_TOKEN=[Example JWT token] yarn start
+```
+
+The UI should now be accessible at http://localhost:8080/.
+
+### Building for prod
+
+```bash
+yarn install
+yarn build
+```
 
 ## License
 
