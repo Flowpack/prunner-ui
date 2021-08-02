@@ -305,13 +305,17 @@ const TaskLogs = ({job, task, apiOpts, refreshInterval}) => {
     <div className="mb-4">
       <div className="text-base text-indigo-500 mb-2">STDOUT</div>
       <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
-        {jobLogsResult.isLoading ? "..." : jobLogsResult.data.stdout}
+        {jobLogsResult.isLoading
+          ? "..."
+          : jobLogsResult.isError ? `Logs could not be loaded: ${jobLogsResult.error}` : jobLogsResult.data.stdout}
       </div>
     </div>
     <div className="mb-4">
       <div className="text-base text-indigo-500 mb-2">STDERR</div>
       <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
-      {jobLogsResult.isLoading ? "..." : jobLogsResult.data.stderr}
+      {jobLogsResult.isLoading
+        ? "..."
+        : jobLogsResult.isError ? `Logs could not be loaded: ${jobLogsResult.error}` : jobLogsResult.data.stderr}
       </div>
     </div>
   </>)

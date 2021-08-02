@@ -28,6 +28,9 @@ A Neos/Flow PHP package providing a backend module for the current pipeline stat
 
 ### Running locally
 
+You can run `prunner debug` in the folder where you usually start `prunner` (where the JWT secret resides
+inside `.prunner.yml`). Then, you get a JWT token you can use as SNOWPACK_PUBLIC_API_AUTH_TOKEN in the next step.
+
 ```bash
 yarn install
 SNOWPACK_PUBLIC_API_AUTH_TOKEN=[Example JWT token] yarn start
