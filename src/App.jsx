@@ -56,6 +56,17 @@ const getJobLogs =
     return response.json();
   };
 
+const postJobCancel =
+  ({ apiBaseUrl, authToken, extraApiHeaders }) =>
+  (jobId) =>
+    fetch(`${apiBaseUrl}job/cancel?id=${encodeURIComponent(jobId)}`, {
+      headers: {
+        ...authHeader(authToken),
+        ...extraApiHeaders,
+      },
+      method: "POST"
+    });
+
 const App = ({
   // Base URL / path for API requests to prunner
   apiBaseUrl = "/",
@@ -102,6 +113,7 @@ const App = ({
         <JobsList
           pipelinesJobsResult={pipelinesJobsResult}
           setCurrentSelection={setCurrentSelection}
+          apiOpts={apiOpts}
         />
       </div>
       <div className="col-span-6 bg-gray-700 p-4">
@@ -161,7 +173,7 @@ const PipelineList = ({ startMutation, pipelinesJobsResult }) => {
   );
 };
 
-const JobsList = ({ pipelinesJobsResult, setCurrentSelection }) => {
+const JobsList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   if (isLoading) {
@@ -175,67 +187,94 @@ const JobsList = ({ pipelinesJobsResult, setCurrentSelection }) => {
   return (
     <div className="">
       {data.jobs?.map((job) => (
-        <div
-          key={job.id}
-          className={`p-4 mb-4 border-2 rounded-md ${
-            job.errored
-              ? "border-red-500"
-              : job.completed
-              ? "border-green-600"
-              : job.canceled ?"border-gray-400" :"border-yellow-500"
-          }`}
-        >
-          <div className="font-extralight text-lg text-white mb-2">
-            {job.pipeline}
-          </div>
-          <div className="mb-2 grid grid-cols-2 gap-4">
-            {job.start ? (
-            <div>
-              <span className="text-sm mr-2 text-indigo-400">Start</span>
-              <span className="text-sm text-white mr-4">
-                {format(new Date(job.start), "HH:mm:ss")}
-              </span>
-            </div>
-            ) : (
-              <div>
-                <span className="text-sm mr-2 text-indigo-400">Queued</span>
-                <span className="text-sm text-white mr-4">
-                  {format(new Date(job.created), "HH:mm:ss")}
-                </span>
-              </div>
-              )}
-            {job.completed ? (
-              <div>
-                <span className="text-sm mr-2 text-indigo-400">End</span>
-                <span className="text-sm text-white">
-                  {format(new Date(job.end), "HH:mm:ss")}
-                </span>
-              </div>
-            ) : job.canceled ? (
-              <div>
-                <span className="text-sm mr-2 text-indigo-400">Canceled</span>
-                </div>
-            ) : null}
-          </div>
-          <div>
-            {job.tasks.map((task) => (
-              <button
-                key={task.name}
-                onClick={() =>
-                  setCurrentSelection({ job: job.id, task: task.name })
-                }
-                title={task.name}
-                className={`inline-block w-5 h-5 mr-3 rounded-md ${taskBg(
-                  task.status
-                )}`}
-              ></button>
-            ))}
-          </div>
-        </div>
+        <JobsListItem key={job.id} job={job} setCurrentSelection={setCurrentSelection} apiOpts={apiOpts} />
       ))}
     </div>
   );
 };
+
+const JobsListItem = ({job, setCurrentSelection, apiOpts}) => {
+  const jobCancelMutation = useMutation(postJobCancel(apiOpts), {
+    onSuccess: () => {
+      queryClient.invalidateQueries("pipelines/jobs");
+    },
+  });
+
+  return (
+    <div
+      className={`p-4 mb-4 border-2 rounded-md ${
+        job.errored
+          ? "border-red-500"
+          : job.completed
+          ? "border-green-600"
+          : job.canceled
+          ? "border-gray-400"
+          : "border-yellow-500"
+      }`}
+    >
+      <div className="font-extralight text-lg text-white mb-2">
+        {job.pipeline}
+        {job.start && !job.end && !job.canceled && (
+          <div className="float-right">
+            <button
+              className="text-white rounded-lg text-sm hover:bg-gray-400 bg-opacity-30 transition-colors border-2 border-gray-400 border-opacity-30 w-6 h-6 flex justify-center items-center"
+              title="Cancel"
+              disabled={jobCancelMutation.isLoading}
+              onClick={() => {
+                jobCancelMutation.mutate(job.id);
+              }}
+            >
+              <span className="pb-1">◼︎</span>
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="mb-2 grid grid-cols-2 gap-4">
+        {job.start ? (
+          <div>
+            <span className="text-sm mr-2 text-indigo-400">Start</span>
+            <span className="text-sm text-white mr-4">
+              {format(new Date(job.start), "HH:mm:ss")}
+            </span>
+          </div>
+        ) : (
+          <div>
+            <span className="text-sm mr-2 text-indigo-400">Queued</span>
+            <span className="text-sm text-white mr-4">
+              {format(new Date(job.created), "HH:mm:ss")}
+            </span>
+          </div>
+        )}
+        {job.canceled ? (
+          <div>
+            <span className="text-sm mr-2 text-indigo-400">Canceled</span>
+          </div>
+        ) : job.completed ? (
+          <div>
+            <span className="text-sm mr-2 text-indigo-400">End</span>
+            <span className="text-sm text-white">
+              {format(new Date(job.end), "HH:mm:ss")}
+            </span>
+          </div>
+        ) : null}
+      </div>
+      <div>
+        {job.tasks.map((task) => (
+          <button
+            key={task.name}
+            onClick={() =>
+              setCurrentSelection({ job: job.id, task: task.name })
+            }
+            title={task.name}
+            className={`inline-block w-5 h-5 mr-3 rounded-md ${taskBg(
+              task.status
+            )}`}
+          ></button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const TaskDetail = ({ pipelinesJobsResult, currentSelection, apiOpts, refreshInterval }) => {
   if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
