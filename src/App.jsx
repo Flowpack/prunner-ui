@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
+import { IconButton, TextButton } from "./components/Buttons";
 
 const authHeader = (token) => {
   if (!token) {
@@ -44,12 +45,17 @@ const postPipelinesSchedule =
 const getJobLogs =
   ({ apiBaseUrl, authToken, extraApiHeaders }, id, task) =>
   async () => {
-    const response = await fetch(`${apiBaseUrl}job/logs?id=${encodeURIComponent(id)}&task=${encodeURIComponent(task)}`, {
-      headers: {
-        ...authHeader(authToken),
-        ...extraApiHeaders,
-      },
-    });
+    const response = await fetch(
+      `${apiBaseUrl}job/logs?id=${encodeURIComponent(
+        id
+      )}&task=${encodeURIComponent(task)}`,
+      {
+        headers: {
+          ...authHeader(authToken),
+          ...extraApiHeaders,
+        },
+      }
+    );
     if (!response.ok) {
       throw new Error("Network response was not ok");
     }
@@ -64,7 +70,7 @@ const postJobCancel =
         ...authHeader(authToken),
         ...extraApiHeaders,
       },
-      method: "POST"
+      method: "POST",
     });
 
 const App = ({
@@ -92,20 +98,13 @@ const App = ({
     }
   );
 
-  const queryClient = useQueryClient();
-  const startMutation = useMutation(postPipelinesSchedule(apiOpts), {
-    onSuccess: () => {
-      queryClient.invalidateQueries("pipelines/jobs");
-    },
-  });
-
   return (
     <div className="grid grid-cols-12 h-full">
       <div className="col-span-3 bg-gray-700 p-4">
         <h2 className="text-2xl text-green-300 mb-4">Pipelines</h2>
         <PipelineList
-          startMutation={startMutation}
           pipelinesJobsResult={pipelinesJobsResult}
+          apiOpts={apiOpts}
         />
       </div>
       <div className="col-span-3 bg-gray-600 p-4 overflow-hidden overflow-y-scroll">
@@ -130,7 +129,7 @@ const App = ({
   );
 };
 
-const PipelineList = ({ startMutation, pipelinesJobsResult }) => {
+const PipelineList = ({ pipelinesJobsResult, apiOpts }) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   if (isLoading) {
@@ -143,32 +142,40 @@ const PipelineList = ({ startMutation, pipelinesJobsResult }) => {
 
   return (
     <div className="">
-      {data.pipelines?.map((pipeline) => {
-        const startDisabled =
-          startMutation.isLoading || !pipeline.schedulable;
+      {data.pipelines?.map((pipeline) => (
+        <PipelineListItem key={pipeline.id} pipeline={pipeline} apiOpts={apiOpts} />
+      ))}
+    </div>
+  );
+};
 
-        return (
-          <div
-            key={pipeline.pipeline}
-            className="p-4 mb-4 border-gray-400 border-2 rounded-md"
-          >
-            <div className="font-extralight text-lg text-white mb-4">
-              {pipeline.pipeline}
-            </div>
-            <button
-              className={`${
-                startDisabled ? "bg-gray-500" : "bg-green-600"
-              } text-white py-2 px-3`}
-              disabled={startDisabled}
-              onClick={() => {
-                startMutation.mutate(pipeline.pipeline);
-              }}
-            >
-              ▶︎ Start
-            </button>
-          </div>
-        );
-      })}
+const PipelineListItem = ({pipeline, apiOpts}) => {
+  const queryClient = useQueryClient();
+  const startMutation = useMutation(postPipelinesSchedule(apiOpts), {
+    onSuccess: () => {
+      queryClient.invalidateQueries("pipelines/jobs");
+    },
+  });
+
+  const startDisabled = startMutation.isLoading || !pipeline.schedulable;
+
+  return (
+    <div
+      key={pipeline.pipeline}
+      className="p-4 mb-4 border-gray-400 border-2 rounded-md"
+    >
+      <div className="font-extralight text-lg text-white mb-4">
+        {pipeline.pipeline}
+      </div>
+      <TextButton
+        disabled={startDisabled}
+        onClick={() => {
+          startMutation.mutate(pipeline.pipeline);
+        }}
+        loading={startMutation.isLoading}
+      >
+        <span className="text-white text-sm">▶︎ Start</span>
+      </TextButton>
     </div>
   );
 };
@@ -187,13 +194,18 @@ const JobsList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => {
   return (
     <div className="">
       {data.jobs?.map((job) => (
-        <JobsListItem key={job.id} job={job} setCurrentSelection={setCurrentSelection} apiOpts={apiOpts} />
+        <JobsListItem
+          key={job.id}
+          job={job}
+          setCurrentSelection={setCurrentSelection}
+          apiOpts={apiOpts}
+        />
       ))}
     </div>
   );
 };
 
-const JobsListItem = ({job, setCurrentSelection, apiOpts}) => {
+const JobsListItem = ({ job, setCurrentSelection, apiOpts }) => {
   const jobCancelMutation = useMutation(postJobCancel(apiOpts), {
     onSuccess: () => {
       queryClient.invalidateQueries("pipelines/jobs");
@@ -216,16 +228,16 @@ const JobsListItem = ({job, setCurrentSelection, apiOpts}) => {
         {job.pipeline}
         {job.start && !job.end && !job.canceled && (
           <div className="float-right">
-            <button
-              className="text-white rounded-lg text-sm hover:bg-gray-400 bg-opacity-30 transition-colors border-2 border-gray-400 border-opacity-30 w-6 h-6 flex justify-center items-center"
+            <IconButton
               title="Cancel"
               disabled={jobCancelMutation.isLoading}
               onClick={() => {
                 jobCancelMutation.mutate(job.id);
               }}
+              loading={jobCancelMutation.isLoading}
             >
               <span className="pb-1">◼︎</span>
-            </button>
+            </IconButton>
           </div>
         )}
       </div>
@@ -274,14 +286,20 @@ const JobsListItem = ({job, setCurrentSelection, apiOpts}) => {
       </div>
     </div>
   );
-}
+};
 
-const TaskDetail = ({ pipelinesJobsResult, currentSelection, apiOpts, refreshInterval }) => {
+const TaskDetail = ({
+  pipelinesJobsResult,
+  currentSelection,
+  apiOpts,
+  refreshInterval,
+}) => {
   if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
     return null;
   }
 
-  let task = null, job = null;
+  let task = null,
+    job = null;
   if (currentSelection.job && currentSelection.task) {
     job = pipelinesJobsResult.data.jobs?.find(
       (job) => job.id === currentSelection.job
@@ -317,22 +335,26 @@ const TaskDetail = ({ pipelinesJobsResult, currentSelection, apiOpts, refreshInt
         </div>
       )}
 
-      {job.variables &&
+      {job.variables && (
         <div className="mb-4">
           <div className="text-base text-indigo-500 mb-2">Variables</div>
           <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
             {JSON.stringify(job.variables, null, 4)}
           </div>
         </div>
-      }
+      )}
 
-      <TaskLogs job={job} task={task} apiOpts={apiOpts} refreshInterval={refreshInterval} />
+      <TaskLogs
+        job={job}
+        task={task}
+        apiOpts={apiOpts}
+        refreshInterval={refreshInterval}
+      />
     </div>
   );
 };
 
-const TaskLogs = ({job, task, apiOpts, refreshInterval}) => {
-
+const TaskLogs = ({ job, task, apiOpts, refreshInterval }) => {
   const jobLogsResult = useQuery(
     ["job/logs", job.id, task.name],
     getJobLogs(apiOpts, job.id, task.name),
@@ -341,32 +363,31 @@ const TaskLogs = ({job, task, apiOpts, refreshInterval}) => {
     }
   );
 
-  return (<>
-    <div className="mb-4">
-      <div className="text-base text-indigo-500 mb-2">STDOUT</div>
-      <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
-        {jobLogsResult.isLoading
-          ? "..."
-          : jobLogsResult.isError ? `Logs could not be loaded: ${jobLogsResult.error}` : jobLogsResult.data.stdout}
+  return (
+    <>
+      <div className="mb-4">
+        <div className="text-base text-indigo-500 mb-2">STDOUT</div>
+        <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
+          {jobLogsResult.isLoading
+            ? "..."
+            : jobLogsResult.isError
+            ? `Logs could not be loaded: ${jobLogsResult.error}`
+            : jobLogsResult.data.stdout}
+        </div>
       </div>
-    </div>
-    <div className="mb-4">
-      <div className="text-base text-indigo-500 mb-2">STDERR</div>
-      <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
-      {jobLogsResult.isLoading
-        ? "..."
-        : jobLogsResult.isError ? `Logs could not be loaded: ${jobLogsResult.error}` : jobLogsResult.data.stderr}
+      <div className="mb-4">
+        <div className="text-base text-indigo-500 mb-2">STDERR</div>
+        <div className="bg-gray-800 text-gray-400 font-mono whitespace-pre-line p-2">
+          {jobLogsResult.isLoading
+            ? "..."
+            : jobLogsResult.isError
+            ? `Logs could not be loaded: ${jobLogsResult.error}`
+            : jobLogsResult.data.stderr}
+        </div>
       </div>
-    </div>
-  </>)
-}
-
-const Spinner = () => (
-  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-  </svg>
-)
+    </>
+  );
+};
 
 function taskBg(status) {
   switch (status) {
