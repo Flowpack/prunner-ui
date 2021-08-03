@@ -272,7 +272,8 @@ const TaskDetail = ({ pipelinesJobsResult, currentSelection, apiOpts, refreshInt
         <div className="mb-4 bg-red-500 p-4">
           <div className="text-white">
             Task failed with exit code{" "}
-            <span className="font-mono font-bold">{task.exitCode}</span>
+            <span className="font-mono font-bold">{task.exitCode}</span>:
+            {task.error}
           </div>
         </div>
       )}
