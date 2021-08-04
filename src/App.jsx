@@ -143,13 +143,17 @@ const PipelineList = ({ pipelinesJobsResult, apiOpts }) => {
   return (
     <div className="">
       {data.pipelines?.map((pipeline) => (
-        <PipelineListItem key={pipeline.id} pipeline={pipeline} apiOpts={apiOpts} />
+        <PipelineListItem
+          key={pipeline.id}
+          pipeline={pipeline}
+          apiOpts={apiOpts}
+        />
       ))}
     </div>
   );
 };
 
-const PipelineListItem = ({pipeline, apiOpts}) => {
+const PipelineListItem = ({ pipeline, apiOpts }) => {
   const queryClient = useQueryClient();
   const startMutation = useMutation(postPipelinesSchedule(apiOpts), {
     onSuccess: () => {
@@ -215,12 +219,12 @@ const JobsListItem = ({ job, setCurrentSelection, apiOpts }) => {
   return (
     <div
       className={`p-4 mb-4 border-2 rounded-md ${
-        job.errored
+        job.canceled
+          ? "border-gray-400"
+          : job.errored
           ? "border-red-500"
           : job.completed
           ? "border-green-600"
-          : job.canceled
-          ? "border-gray-400"
           : "border-yellow-500"
       }`}
     >
@@ -329,8 +333,7 @@ const TaskDetail = ({
         <div className="mb-4 bg-red-500 p-4">
           <div className="text-white">
             Task failed with exit code{" "}
-            <span className="font-mono font-bold">{task.exitCode}</span>:
-            {task.error}
+            <span className="font-mono font-bold">{task.exitCode}</span>
           </div>
         </div>
       )}
