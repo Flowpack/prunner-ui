@@ -144,7 +144,7 @@ const PipelineList = ({ pipelinesJobsResult, apiOpts }) => {
     <div className="">
       {data.pipelines?.map((pipeline) => (
         <PipelineListItem
-          key={pipeline.id}
+          key={pipeline.pipeline}
           pipeline={pipeline}
           apiOpts={apiOpts}
         />
@@ -165,7 +165,6 @@ const PipelineListItem = ({ pipeline, apiOpts }) => {
 
   return (
     <div
-      key={pipeline.pipeline}
       className="p-4 mb-4 border-gray-400 border-2 rounded-md"
     >
       <div className="font-extralight text-lg text-white mb-4">
