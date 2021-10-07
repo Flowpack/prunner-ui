@@ -4,34 +4,36 @@ module.exports = {
   theme: {
     fontFamily: {
       'sans': '"Noto Sans", sans-serif',
+      'mono': 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+
     },
     colors: {
       transparent: 'transparent',
       current: 'currentColor',
       white: {
-        DEFAULT: '#fff',
+        DEFAULT: '#ffffff',
       },
       black: {
-        DEFAULT: '#000',
+        DEFAULT: '#000000',
       },
       blue: {
-        light: '#00b5ff',
         DEFAULT: '#00b5ff',
-        dark: '#00b5ff',
       },
       green: {
-        light: '#00a338',
         DEFAULT: '#00a338',
-        dark: '#00a338',
       },
       gray: {
-        700: '#323232',
-        600: '#3f3f3f',
-        DEFAULT: '#999',
+        700: '#141414',
+        600: '#323232',
+        500: '#3f3f3f',
+        DEFAULT: '#999999',
         400: '#c4c4c4',
       },
       orange: {
         DEFAULT: '#ff8700',
+      },
+      red: {
+        DEFAULT: '#ff460d',
       }
     }
   }

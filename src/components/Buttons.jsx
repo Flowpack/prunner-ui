@@ -1,3 +1,4 @@
+import classNames from "classnames";
 import React from "react";
 import Spinner from "./Spinner";
 
@@ -6,11 +7,20 @@ const IconButton = ({
   disabled = false,
   title,
   loading = false,
+  danger = false,
   children,
 }) => {
   return (
     <button
-      className="text-white rounded-lg text-sm hover:bg-gray-400 bg-opacity-30 transition-colors duration-300 border-2 border-gray-400 border-opacity-30 w-6 h-6 flex justify-center items-center"
+      className={
+        classNames(
+          "text-white text-sm transition-colors flex justify-center items-center",
+          {
+            "hover:bg-gray-500": !danger,
+            "hover:bg-red": danger
+          }
+        )
+      }
       title={title}
       disabled={disabled}
       onClick={onClick}
@@ -29,11 +39,10 @@ const TextButton = ({
 }) => {
   return (
     <button
-      className={`bg-green-500 transition-all duration-300 ${
-        disabled
-          ? "bg-opacity-30"
-          : "bg-opacity-60 hover:bg-opacity-80"
-      } rounded-md py-2 px-3 relative`}
+      className={`bg-blue transition-all duration-300 ${disabled
+        ? "bg-opacity-30 bg-gray"
+        : "hover:bg-opacity-60"
+        } py-2 px-3 relative`}
       disabled={disabled}
       onClick={onClick}
     >
