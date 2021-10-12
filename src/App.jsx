@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
 import { IconButton, TextButton } from "./components/Buttons";
+import Spinner from "./components/Spinner";
 
 const authHeader = (token) => {
   if (!token) {
@@ -14,64 +15,64 @@ const authHeader = (token) => {
 
 const getPipelinesJobs =
   ({ apiBaseUrl, authToken, extraApiHeaders }) =>
-    async () => {
-      const response = await fetch(`${apiBaseUrl}pipelines/jobs`, {
-        headers: {
-          ...authHeader(authToken),
-          ...extraApiHeaders,
-        },
-      });
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-      return response.json();
-    };
+  async () => {
+    const response = await fetch(`${apiBaseUrl}pipelines/jobs`, {
+      headers: {
+        ...authHeader(authToken),
+        ...extraApiHeaders,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+    return response.json();
+  };
 
 const postPipelinesSchedule =
   ({ apiBaseUrl, authToken, extraApiHeaders }) =>
-    (pipeline) =>
-      fetch(`${apiBaseUrl}pipelines/schedule`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeader(authToken),
-          ...extraApiHeaders,
-        },
-        method: "POST",
-        body: JSON.stringify({
-          pipeline,
-        }),
-      });
+  (pipeline) =>
+    fetch(`${apiBaseUrl}pipelines/schedule`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(authToken),
+        ...extraApiHeaders,
+      },
+      method: "POST",
+      body: JSON.stringify({
+        pipeline,
+      }),
+    });
 
 const getJobLogs =
   ({ apiBaseUrl, authToken, extraApiHeaders }, id, task) =>
-    async () => {
-      const response = await fetch(
-        `${apiBaseUrl}job/logs?id=${encodeURIComponent(
-          id
-        )}&task=${encodeURIComponent(task)}`,
-        {
-          headers: {
-            ...authHeader(authToken),
-            ...extraApiHeaders,
-          },
-        }
-      );
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-      return response.json();
-    };
-
-const postJobCancel =
-  ({ apiBaseUrl, authToken, extraApiHeaders }) =>
-    (jobId) =>
-      fetch(`${apiBaseUrl}job/cancel?id=${encodeURIComponent(jobId)}`, {
+  async () => {
+    const response = await fetch(
+      `${apiBaseUrl}job/logs?id=${encodeURIComponent(
+        id
+      )}&task=${encodeURIComponent(task)}`,
+      {
         headers: {
           ...authHeader(authToken),
           ...extraApiHeaders,
         },
-        method: "POST",
-      });
+      }
+    );
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+    return response.json();
+  };
+
+const postJobCancel =
+  ({ apiBaseUrl, authToken, extraApiHeaders }) =>
+  (jobId) =>
+    fetch(`${apiBaseUrl}job/cancel?id=${encodeURIComponent(jobId)}`, {
+      headers: {
+        ...authHeader(authToken),
+        ...extraApiHeaders,
+      },
+      method: "POST",
+    });
 
 const App = ({
   // Base URL / path for API requests to prunner
@@ -164,9 +165,7 @@ const PipelineListItem = ({ pipeline, apiOpts }) => {
   const startDisabled = startMutation.isLoading || !pipeline.schedulable;
 
   return (
-    <div
-      className="p-4 mb-4 border-gray-500 border"
-    >
+    <div className="p-4 mb-4 border-gray-500 border">
       <div className="font-extralight text-lg text-white mb-4">
         {pipeline.pipeline}
       </div>
@@ -217,14 +216,15 @@ const JobsListItem = ({ job, setCurrentSelection, apiOpts }) => {
 
   return (
     <div
-      className={`p-4 mb-4 border ${job.canceled
+      className={`p-4 mb-4 border ${
+        job.canceled
           ? "border-gray-400"
           : job.errored
-            ? "border-red"
-            : job.completed
-              ? "border-green"
-              : "border-orange"
-        }`}
+          ? "border-red"
+          : job.completed
+          ? "border-green"
+          : "border-orange"
+      }`}
     >
       <div className="font-extralight text-lg text-white mb-2">
         {job.pipeline}
@@ -317,8 +317,11 @@ const TaskDetail = ({
 
   return (
     <div>
-      <div className="text-2xl text-gray-300 mb-4">
-        <span className="text-white">Task</span> {task.name}
+      <div className="flex justify-between items-center text-2xl text-gray-300 mb-4">
+        <span>
+          <span className="text-white">Task</span>{" "}
+          <span className="text-blue">{task.name}</span>
+        </span>
         <span
           className={`text-xs p-1 ml-2 font-semibold uppercase align-middle rounded ${taskBg(
             task.status
@@ -365,31 +368,46 @@ const TaskLogs = ({ job, task, apiOpts, refreshInterval }) => {
     }
   );
 
+  if (jobLogsResult.isLoading) {
+    return (
+      <div>
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (jobLogsResult.isError) {
+    return <div>{`Logs could not be loaded: ${jobLogsResult.error}`}</div>;
+  }
+
+  if (!jobLogsResult.data.stdout && !jobLogsResult.data.stderr) {
+    return (
+      <div className="bg-gray-600 text-gray-400 italic p-2 mb-4">
+        Empty command output
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="mb-4">
-        <div className="text-base text-blue mb-2">STDOUT</div>
-        <div className="bg-gray-600 text-gray-400 font-mono whitespace-pre-line p-2">
-          {jobLogsResult.isLoading
-            ? "..."
-            : jobLogsResult.isError
-              ? `Logs could not be loaded: ${jobLogsResult.error}`
-              : jobLogsResult.data.stdout}
-        </div>
-      </div>
-      <div className="mb-4">
-        <div className="text-base text-blue mb-2">STDERR</div>
-        <div className="bg-gray-600 text-gray-400 font-mono whitespace-pre-line p-2">
-          {jobLogsResult.isLoading
-            ? "..."
-            : jobLogsResult.isError
-              ? `Logs could not be loaded: ${jobLogsResult.error}`
-              : jobLogsResult.data.stderr}
-        </div>
-      </div>
+      {jobLogsResult.data.stdout && (
+        <LogOutputPanel output={jobLogsResult.data.stdout} label="stdout" />
+      )}
+      {jobLogsResult.data.stderr && (
+        <LogOutputPanel output={jobLogsResult.data.stderr} label="stderr" />
+      )}
     </>
   );
 };
+
+const LogOutputPanel = ({ output, label }) => (
+  <div className="relative bg-gray-600 text-gray-400 font-mono whitespace-pre-line p-2 mb-4">
+    <div className="absolute top-0 right-0 pl-8 p-2 text-base bg-gradient-to-r from-transparent via-gray-600 to-gray-600 text-blue uppercase">
+      {label}
+    </div>
+    {output}
+  </div>
+);
 
 function taskBg(status) {
   switch (status) {
