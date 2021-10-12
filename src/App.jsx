@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
 import { IconButton, TextButton } from "./components/Buttons";
 import Spinner from "./components/Spinner";
+import classNames from "classnames";
 
 const authHeader = (token) => {
   if (!token) {
@@ -83,6 +84,8 @@ const App = ({
   authToken,
   // Set additional headers to send for API requests (e.g. CSRF token)
   extraApiHeaders = {},
+  // Remove some padding for embedding the UI in an IFrame
+  removePadding = false,
 }) => {
   const apiOpts = { apiBaseUrl, authToken, extraApiHeaders };
 
@@ -100,23 +103,34 @@ const App = ({
   );
 
   return (
-    <div className="grid grid-cols-12 h-full">
-      <div className="col-span-3 bg-gray-700 p-4">
+    <div className="grid grid-cols-12 h-full bg-gray-700">
+      <div
+        className={classNames("col-span-2", {
+          "p-4": !removePadding,
+          "pt-4 pr-4 pb-4": removePadding,
+        })}
+      >
         <h2 className="text-2xl text-white mb-4">Pipelines</h2>
         <PipelineList
           pipelinesJobsResult={pipelinesJobsResult}
           apiOpts={apiOpts}
         />
       </div>
-      <div className="col-span-3 bg-gray-600 p-4 overflow-hidden overflow-y-scroll">
+      <div className="col-span-4 p-4 border-l border-gray-500 overflow-hidden overflow-y-scroll">
         <h2 className="text-2xl text-white mb-4">Jobs</h2>
         <JobsList
           pipelinesJobsResult={pipelinesJobsResult}
+          currentSelection={currentSelection}
           setCurrentSelection={setCurrentSelection}
           apiOpts={apiOpts}
         />
       </div>
-      <div className="col-span-6 bg-gray-700 p-4">
+      <div
+        className={classNames("col-span-6 border-l border-gray-500", {
+          "p-4": !removePadding,
+          "pt-4 pl-4 pb-4": removePadding,
+        })}
+      >
         {currentSelection.task ? (
           <TaskDetail
             pipelinesJobsResult={pipelinesJobsResult}
@@ -182,7 +196,12 @@ const PipelineListItem = ({ pipeline, apiOpts }) => {
   );
 };
 
-const JobsList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => {
+const JobsList = ({
+  pipelinesJobsResult,
+  currentSelection,
+  setCurrentSelection,
+  apiOpts,
+}) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   if (isLoading) {
@@ -199,6 +218,7 @@ const JobsList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => {
         <JobsListItem
           key={job.id}
           job={job}
+          currentSelection={currentSelection}
           setCurrentSelection={setCurrentSelection}
           apiOpts={apiOpts}
         />
@@ -207,7 +227,12 @@ const JobsList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => {
   );
 };
 
-const JobsListItem = ({ job, setCurrentSelection, apiOpts }) => {
+const JobsListItem = ({
+  job,
+  currentSelection,
+  setCurrentSelection,
+  apiOpts,
+}) => {
   const jobCancelMutation = useMutation(postJobCancel(apiOpts), {
     onSuccess: () => {
       queryClient.invalidateQueries("pipelines/jobs");
@@ -281,9 +306,15 @@ const JobsListItem = ({ job, setCurrentSelection, apiOpts }) => {
               setCurrentSelection({ job: job.id, task: task.name })
             }
             title={task.name}
-            className={`inline-block w-5 h-5 mr-3 rounded-md ${taskBg(
-              task.status
-            )}`}
+            className={classNames(
+              "inline-block w-5 h-5 mr-3 rounded-md",
+              taskClasses(task.status),
+              {
+                "outline-white":
+                  job.id === currentSelection.job &&
+                  task.name === currentSelection.task,
+              }
+            )}
           ></button>
         ))}
       </div>
@@ -323,9 +354,10 @@ const TaskDetail = ({
           <span className="text-blue">{task.name}</span>
         </span>
         <span
-          className={`text-xs p-1 ml-2 font-semibold uppercase align-middle rounded ${taskBg(
-            task.status
-          )}`}
+          className={classNames(
+            "text-xs p-1 ml-2 font-semibold uppercase align-middle rounded",
+            taskClasses(task.status)
+          )}
         >
           {task.status}
         </span>
@@ -409,16 +441,18 @@ const LogOutputPanel = ({ output, label }) => (
   </div>
 );
 
-function taskBg(status) {
+function taskClasses(status) {
   switch (status) {
     case "running":
-      return "bg-orange";
+      return ["bg-orange", "text-gray-800"];
     case "done":
-      return "bg-green";
+      return ["bg-green", "text-white"];
     case "error":
-      return "bg-red";
+      return ["bg-red", "text-white"];
+    case "canceled":
+      return ["bg-gray-500", "text-white"];
     default:
-      return "bg-gray-400";
+      return ["bg-gray-400", "text-gray-800"];
   }
 }
 

@@ -39,7 +39,7 @@ const TextButton = ({
 }) => {
   return (
     <button
-      className={`bg-blue transition-all duration-300 ${disabled
+      className={`bg-blue transition-all ${disabled
         ? "bg-opacity-30 bg-gray"
         : "hover:bg-opacity-60"
         } py-2 px-3 relative`}
