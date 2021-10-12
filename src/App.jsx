@@ -1,16 +1,10 @@
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
+import formatDistanceStrict from "date-fns/formatDistanceStrict";
 import { IconButton, TextButton } from "./components/Buttons";
 import Spinner from "./components/Spinner";
 import classNames from "classnames";
-import {
-  formatDistance,
-  formatDistanceStrict,
-  formatDistanceToNowStrict,
-  formatDuration,
-  intervalToDuration,
-} from "date-fns";
 import useInterval from "./hooks/useInterval";
 
 const authHeader = (token) => {
@@ -310,14 +304,16 @@ const JobsListItem = ({
           <div>
             <span className="text-sm mr-2 text-blue">Completed</span>
             <span className="text-sm text-white">
-              <span className="text-gray-400">in</span> {formatDistanceStrict(new Date(job.start), new Date(job.end))}
+              <span className="text-gray-400">in</span>{" "}
+              {formatDistanceStrict(new Date(job.start), new Date(job.end))}
             </span>
           </div>
         ) : running ? (
           <div>
             <span className="text-sm mr-2 text-blue">Running</span>
             <span className="text-sm text-white">
-            <span className="text-gray-400">for</span> {formatDistanceStrict(new Date(job.start), new Date(now))}
+              <span className="text-gray-400">for</span>{" "}
+              {formatDistanceStrict(new Date(job.start), new Date(now))}
             </span>
           </div>
         ) : null}
