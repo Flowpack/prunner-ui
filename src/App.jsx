@@ -4,6 +4,14 @@ import format from "date-fns/format";
 import { IconButton, TextButton } from "./components/Buttons";
 import Spinner from "./components/Spinner";
 import classNames from "classnames";
+import {
+  formatDistance,
+  formatDistanceStrict,
+  formatDistanceToNowStrict,
+  formatDuration,
+  intervalToDuration,
+} from "date-fns";
+import useInterval from "./hooks/useInterval";
 
 const authHeader = (token) => {
   if (!token) {
@@ -238,6 +246,15 @@ const JobsListItem = ({
       queryClient.invalidateQueries("pipelines/jobs");
     },
   });
+  const running = job.start && !job.end && !job.canceled;
+  const [now, setNow] = useState(Date.now());
+
+  useInterval(
+    () => {
+      setNow(Date.now());
+    },
+    running ? 250 : null
+  );
 
   return (
     <div
@@ -253,7 +270,7 @@ const JobsListItem = ({
     >
       <div className="font-extralight text-lg text-white mb-2">
         {job.pipeline}
-        {job.start && !job.end && !job.canceled && (
+        {running && (
           <div className="float-right">
             <IconButton
               danger
@@ -291,14 +308,21 @@ const JobsListItem = ({
           </div>
         ) : job.completed ? (
           <div>
-            <span className="text-sm mr-2 text-blue">End</span>
+            <span className="text-sm mr-2 text-blue">Completed</span>
             <span className="text-sm text-white">
-              {format(new Date(job.end), "HH:mm:ss")}
+              <span className="text-gray-400">in</span> {formatDistanceStrict(new Date(job.start), new Date(job.end))}
+            </span>
+          </div>
+        ) : running ? (
+          <div>
+            <span className="text-sm mr-2 text-blue">Running</span>
+            <span className="text-sm text-white">
+            <span className="text-gray-400">for</span> {formatDistanceStrict(new Date(job.start), new Date(now))}
             </span>
           </div>
         ) : null}
       </div>
-      <div>
+      <div className="flex flex-wrap gap-2">
         {job.tasks.map((task) => (
           <button
             key={task.name}
@@ -307,7 +331,7 @@ const JobsListItem = ({
             }
             title={task.name}
             className={classNames(
-              "inline-block w-5 h-5 mr-3 rounded-md",
+              "block w-5 h-5 rounded-md",
               taskClasses(task.status),
               {
                 "outline-white":
