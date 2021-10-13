@@ -9,6 +9,8 @@ import useInterval from "./hooks/useInterval";
 import useHashParam from "use-hash-param";
 import { DagreReact, Node, Rect } from "dagre-reactjs";
 
+const DATE_FORMAT_TIME_AND_DAY = "HH:mm:ss y-MM-dd";
+
 const authHeader = (token) => {
   if (!token) {
     return null;
@@ -328,14 +330,14 @@ const JobsListItem = ({
           <div>
             <span className="text-sm mr-2 text-blue">Start</span>
             <span className="text-sm text-white mr-4">
-              {format(new Date(job.start), "HH:mm:ss")}
+              {format(new Date(job.start), DATE_FORMAT_TIME_AND_DAY)}
             </span>
           </div>
         ) : (
           <div>
             <span className="text-sm mr-2 text-blue">Queued</span>
             <span className="text-sm text-white mr-4">
-              {format(new Date(job.created), "HH:mm:ss")}
+              {format(new Date(job.created), DATE_FORMAT_TIME_AND_DAY)}
             </span>
           </div>
         )}
@@ -535,13 +537,13 @@ const JobDetail = ({
         <div>
           <span className="text-sm mr-2 text-blue">Created</span>
           <span className="text-sm text-white mr-4">
-            {format(new Date(job.created), "HH:mm:ss")}
+            {format(new Date(job.created), DATE_FORMAT_TIME_AND_DAY)}
           </span>
         </div>
         <div>
           <span className="text-sm mr-2 text-blue">Start</span>
           <span className="text-sm text-white mr-4">
-            {format(new Date(job.start), "HH:mm:ss")}
+            {format(new Date(job.start), DATE_FORMAT_TIME_AND_DAY)}
           </span>
         </div>
         <div>
@@ -549,7 +551,7 @@ const JobDetail = ({
             <>
               <span className="text-sm mr-2 text-blue">End</span>
               <span className="text-sm text-white mr-4">
-                {format(new Date(job.end), "HH:mm:ss")}
+                {format(new Date(job.end), DATE_FORMAT_TIME_AND_DAY)}
               </span>
             </>
           )}
@@ -560,6 +562,8 @@ const JobDetail = ({
         </div>
       </div>
 
+
+      <div className="text-xl text-gray-300 mb-4 text-gray-400">Task overview</div>
       <JobTasksGraph
         job={job}
         currentSelection={currentSelection}
