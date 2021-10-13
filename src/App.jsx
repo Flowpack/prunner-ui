@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
 import formatDistanceStrict from "date-fns/formatDistanceStrict";
@@ -6,6 +6,10 @@ import { IconButton, TextButton } from "./components/Buttons";
 import Spinner from "./components/Spinner";
 import classNames from "classnames";
 import useInterval from "./hooks/useInterval";
+import useHashParam from "use-hash-param";
+import { DagreReact, Node, Rect } from "dagre-reactjs";
+
+const DATE_FORMAT_TIME_AND_DAY = "HH:mm:ss y-MM-dd";
 
 const authHeader = (token) => {
   if (!token) {
@@ -33,8 +37,8 @@ const getPipelinesJobs =
 
 const postPipelinesSchedule =
   ({ apiBaseUrl, authToken, extraApiHeaders }) =>
-  (pipeline) =>
-    fetch(`${apiBaseUrl}pipelines/schedule`, {
+  async (pipeline) => {
+    const response = await fetch(`${apiBaseUrl}pipelines/schedule`, {
       headers: {
         "Content-Type": "application/json",
         ...authHeader(authToken),
@@ -45,6 +49,11 @@ const postPipelinesSchedule =
         pipeline,
       }),
     });
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+    return response.json();
+  };
 
 const getJobLogs =
   ({ apiBaseUrl, authToken, extraApiHeaders }, id, task) =>
@@ -77,6 +86,15 @@ const postJobCancel =
       method: "POST",
     });
 
+const routes = {
+  "/": () => ({ job: null, task: null }),
+  "/job/:jobId": ({ jobId }) => ({ job: jobId, task: null }),
+  "/job/:jobId/:taskName": ({ jobId, taskName }) => ({
+    job: jobId,
+    task: taskName,
+  }),
+};
+
 const App = ({
   // Base URL / path for API requests to prunner
   apiBaseUrl = "/",
@@ -91,10 +109,16 @@ const App = ({
 }) => {
   const apiOpts = { apiBaseUrl, authToken, extraApiHeaders };
 
-  const [currentSelection, setCurrentSelection] = useState({
-    job: null,
-    task: null,
-  });
+  const [selectedJob, setSelectedJob] = useHashParam("job", "");
+  const [selectedTask, setSelectedTask] = useHashParam("task", "");
+  const currentSelection = {
+    job: selectedJob ?? null,
+    task: selectedTask ?? null,
+  };
+  const setCurrentSelection = ({ job, task }) => {
+    setSelectedJob(job ?? "");
+    setSelectedTask(task ?? "");
+  };
 
   const pipelinesJobsResult = useQuery(
     "pipelines/jobs",
@@ -115,6 +139,7 @@ const App = ({
         <h2 className="text-2xl text-white mb-4">Pipelines</h2>
         <PipelineList
           pipelinesJobsResult={pipelinesJobsResult}
+          setCurrentSelection={setCurrentSelection}
           apiOpts={apiOpts}
         />
       </div>
@@ -128,15 +153,26 @@ const App = ({
         />
       </div>
       <div
-        className={classNames("col-span-6 border-l border-gray-500", {
-          "p-4": !removePadding,
-          "pt-4 pl-4 pb-4": removePadding,
-        })}
+        className={classNames(
+          "col-span-6 border-l border-gray-500 overflow-hidden overflow-y-scroll",
+          {
+            "p-4": !removePadding,
+            "pt-4 pl-4 pb-4": removePadding,
+          }
+        )}
       >
         {currentSelection.task ? (
           <TaskDetail
             pipelinesJobsResult={pipelinesJobsResult}
             currentSelection={currentSelection}
+            apiOpts={apiOpts}
+            refreshInterval={refreshInterval}
+          />
+        ) : currentSelection.job ? (
+          <JobDetail
+            pipelinesJobsResult={pipelinesJobsResult}
+            currentSelection={currentSelection}
+            setCurrentSelection={setCurrentSelection}
             apiOpts={apiOpts}
             refreshInterval={refreshInterval}
           />
@@ -146,7 +182,11 @@ const App = ({
   );
 };
 
-const PipelineList = ({ pipelinesJobsResult, apiOpts }) => {
+const PipelineList = ({
+  pipelinesJobsResult,
+  setCurrentSelection,
+  apiOpts,
+}) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   if (isLoading) {
@@ -163,6 +203,7 @@ const PipelineList = ({ pipelinesJobsResult, apiOpts }) => {
         <PipelineListItem
           key={pipeline.pipeline}
           pipeline={pipeline}
+          setCurrentSelection={setCurrentSelection}
           apiOpts={apiOpts}
         />
       ))}
@@ -170,11 +211,13 @@ const PipelineList = ({ pipelinesJobsResult, apiOpts }) => {
   );
 };
 
-const PipelineListItem = ({ pipeline, apiOpts }) => {
+const PipelineListItem = ({ pipeline, setCurrentSelection, apiOpts }) => {
   const queryClient = useQueryClient();
   const startMutation = useMutation(postPipelinesSchedule(apiOpts), {
-    onSuccess: () => {
+    onSuccess: ({ jobId }) => {
       queryClient.invalidateQueries("pipelines/jobs");
+
+      setCurrentSelection({ job: jobId, task: null });
     },
   });
 
@@ -252,18 +295,20 @@ const JobsListItem = ({
 
   return (
     <div
-      className={`p-4 mb-4 border ${
-        job.canceled
-          ? "border-gray-400"
-          : job.errored
-          ? "border-red"
-          : job.completed
-          ? "border-green"
-          : "border-orange"
-      }`}
+      className={classNames("p-4 mb-4 border", {
+        "border-gray-400": job.canceled,
+        "border-red": job.errored,
+        "border-green": job.completed && !job.errored,
+        "border-orange": !job.canceled && !job.errored && !job.completed,
+        "shadow-inner-glow": currentSelection.job === job.id,
+      })}
     >
       <div className="font-extralight text-lg text-white mb-2">
-        {job.pipeline}
+        <button
+          onClick={() => setCurrentSelection({ job: job.id, task: null })}
+        >
+          {job.pipeline}
+        </button>
         {running && (
           <div className="float-right">
             <IconButton
@@ -285,14 +330,14 @@ const JobsListItem = ({
           <div>
             <span className="text-sm mr-2 text-blue">Start</span>
             <span className="text-sm text-white mr-4">
-              {format(new Date(job.start), "HH:mm:ss")}
+              {format(new Date(job.start), DATE_FORMAT_TIME_AND_DAY)}
             </span>
           </div>
         ) : (
           <div>
             <span className="text-sm mr-2 text-blue">Queued</span>
             <span className="text-sm text-white mr-4">
-              {format(new Date(job.created), "HH:mm:ss")}
+              {format(new Date(job.created), DATE_FORMAT_TIME_AND_DAY)}
             </span>
           </div>
         )}
@@ -330,7 +375,7 @@ const JobsListItem = ({
               "block w-5 h-5 rounded-md",
               taskClasses(task.status),
               {
-                "outline-white":
+                "shadow-glow":
                   job.id === currentSelection.job &&
                   task.name === currentSelection.task,
               }
@@ -461,6 +506,235 @@ const LogOutputPanel = ({ output, label }) => (
   </div>
 );
 
+const JobDetail = ({
+  pipelinesJobsResult,
+  currentSelection,
+  setCurrentSelection,
+  apiOpts,
+  refreshInterval,
+}) => {
+  if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
+    return null;
+  }
+
+  const job = pipelinesJobsResult.data.jobs?.find(
+    (job) => job.id === currentSelection.job
+  );
+  if (!job) {
+    return null;
+  }
+
+  return (
+    <div className="">
+      <div className="text-2xl text-gray-300 mb-4">
+        <span>
+          <span className="text-white">Job</span>{" "}
+          <span className="text-blue">{job.pipeline}</span>
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-4 mb-8">
+        <div>
+          <span className="text-sm mr-2 text-blue">Created</span>
+          <span className="text-sm text-white mr-4">
+            {format(new Date(job.created), DATE_FORMAT_TIME_AND_DAY)}
+          </span>
+        </div>
+        <div>
+          <span className="text-sm mr-2 text-blue">Start</span>
+          <span className="text-sm text-white mr-4">
+            {format(new Date(job.start), DATE_FORMAT_TIME_AND_DAY)}
+          </span>
+        </div>
+        <div>
+          {job.end && (
+            <>
+              <span className="text-sm mr-2 text-blue">End</span>
+              <span className="text-sm text-white mr-4">
+                {format(new Date(job.end), DATE_FORMAT_TIME_AND_DAY)}
+              </span>
+            </>
+          )}
+        </div>
+        <div>
+          <span className="text-sm mr-2 text-blue">Id</span>
+          <span className="text-sm text-white mr-4">{job.id}</span>
+        </div>
+      </div>
+
+
+      <div className="text-xl text-gray-300 mb-4 text-gray-400">Task overview</div>
+      <JobTasksGraph
+        job={job}
+        currentSelection={currentSelection}
+        setCurrentSelection={setCurrentSelection}
+      />
+    </div>
+  );
+};
+
+const DEFAULT_NODE_CONFIG = {
+  styles: {
+    node: {
+      padding: {
+        top: 6,
+        right: 8,
+        bottom: 6,
+        left: 8,
+      },
+    },
+    shape: {
+      className: "fill-gray-400",
+      styles: {
+        fillOpacity: 1,
+      },
+    },
+    label: {
+      className: "fill-gray-800",
+    },
+  },
+};
+
+const DEFAULT_EDGE_CONFIG = {
+  styles: {
+    edge: {
+      className: "stroke-white",
+      styles: {
+        stroke: null,
+        fillOpacity: 0,
+      },
+    },
+    marker: {
+      className: "fill-white",
+    },
+  },
+};
+
+const NodeTextLabel = ({ currentSelection, setCurrentSelection, node }) => {
+  return (
+    <text
+      className={node.styles.label.className}
+      style={node.styles.label.styles || {}}
+    >
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          console.debug("click", node.id);
+          setCurrentSelection({
+            job: currentSelection.job,
+            task: node.id,
+          });
+        }}
+      >
+        <tspan xmlSpace="preserve" dy="1em" x="1">
+          {node.label}
+        </tspan>
+      </a>
+    </text>
+  );
+};
+
+const renderNode =
+  ({ currentSelection, setCurrentSelection }) =>
+  (node, reportSize, valueCache) => {
+    return (
+      <Node
+        key={node.id}
+        node={node}
+        reportSize={reportSize}
+        valueCache={valueCache}
+        html={false}
+      >
+        {{
+          shape: (innerSize) => <Rect node={node} innerSize={innerSize} />,
+          label: () => (
+            <NodeTextLabel
+              currentSelection={currentSelection}
+              setCurrentSelection={setCurrentSelection}
+              node={node}
+            />
+          ),
+        }}
+      </Node>
+    );
+  };
+
+const JobTasksGraph = ({ job, currentSelection, setCurrentSelection }) => {
+  // This is needed for DagreReact to force re-renderings if graph data changed
+  const [stage, setStage] = useState(0);
+  useEffect(() => {
+    setStage(stage + 1);
+  }, [job]);
+
+  const [svgSize, setSvgSize] = useState({
+    width: 1000,
+    height: 1000,
+    actualWidth: "100%",
+  });
+  const svgContainer = useRef();
+
+  const nodes = job.tasks.map((task) => {
+    const [shapeClassName, labelClassName] = taskNodeShapeAndLabelClasses(
+      task.status
+    );
+    return {
+      id: task.name,
+      label: task.name,
+      styles: {
+        shape: {
+          className: shapeClassName,
+        },
+        label: {
+          className: labelClassName,
+        },
+      },
+    };
+  });
+  const edges = job.tasks.flatMap(
+    (task) =>
+      task.dependsOn?.map((previousTask) => ({
+        from: previousTask,
+        to: task.name,
+      })) ?? []
+  );
+
+  return (
+    <div className="flex justify-center" ref={svgContainer}>
+      <svg
+        width={svgSize.actualWidth}
+        height="auto"
+        viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
+        preserveAspectRatio="xMinYMin meet"
+      >
+        <DagreReact
+          stage={stage}
+          nodes={nodes}
+          edges={edges}
+          renderNode={renderNode({ currentSelection, setCurrentSelection })}
+          graphLayoutComplete={(graphWidth, graphHeight) => {
+            // Do some trickery with the width attribute since doing this via CSS didn't work out:
+            // - If graph size exceeds the container size, it should scale down
+            // - If graph size is smaller than container, it should not scale up and we set an explicit width
+            let svgActualWidth = "100%";
+            const rect = svgContainer.current.getBoundingClientRect();
+            if (graphWidth < rect.width) {
+              svgActualWidth = `${graphWidth}px`;
+            }
+            setSvgSize({
+              width: graphWidth,
+              height: graphHeight,
+              actualWidth: svgActualWidth,
+            });
+          }}
+          defaultNodeConfig={DEFAULT_NODE_CONFIG}
+          defaultEdgeConfig={DEFAULT_EDGE_CONFIG}
+        />
+      </svg>
+    </div>
+  );
+};
+
 function taskClasses(status) {
   switch (status) {
     case "running":
@@ -473,6 +747,21 @@ function taskClasses(status) {
       return ["bg-gray-500", "text-white"];
     default:
       return ["bg-gray-400", "text-gray-800"];
+  }
+}
+
+function taskNodeShapeAndLabelClasses(status) {
+  switch (status) {
+    case "running":
+      return ["fill-orange", "fill-gray-800"];
+    case "done":
+      return ["fill-green", "fill-white"];
+    case "error":
+      return ["fill-red", "fill-white"];
+    case "canceled":
+      return ["fill-gray-500", "fill-white"];
+    default:
+      return ["fill-gray-400", "fill-gray-800"];
   }
 }
 

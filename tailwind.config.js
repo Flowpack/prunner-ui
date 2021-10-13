@@ -36,6 +36,24 @@ module.exports = {
       red: {
         DEFAULT: '#ff460d',
       }
+    },
+    fill: theme => ({
+      'white': theme('colors.white'),
+      'gray-400': theme('colors.gray.400'),
+      'gray-500': theme('colors.gray.500'),
+      'gray-800': theme('colors.gray.800'),
+      'green': theme('colors.green'),
+      'orange': theme('colors.orange'),
+      'red': theme('colors.red'),
+    }),
+    stroke: theme => ({
+      'white': theme('colors.white'),
+      'gray-400': theme('colors.gray.400'),
+      'gray-800': theme('colors.gray.800'),
+    }),
+    boxShadow: {
+      'inner-glow': 'inset 0 2px 16px 0 rgba(255, 255, 255, 0.4)',
+      'glow': '0 0 2px 2px rgba(255, 255, 255, 0.8)',
     }
   }
 };
