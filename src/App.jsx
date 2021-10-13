@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import format from "date-fns/format";
 import formatDistanceStrict from "date-fns/formatDistanceStrict";
@@ -151,10 +151,13 @@ const App = ({
         />
       </div>
       <div
-        className={classNames("col-span-6 border-l border-gray-500", {
-          "p-4": !removePadding,
-          "pt-4 pl-4 pb-4": removePadding,
-        })}
+        className={classNames(
+          "col-span-6 border-l border-gray-500 overflow-hidden overflow-y-scroll",
+          {
+            "p-4": !removePadding,
+            "pt-4 pl-4 pb-4": removePadding,
+          }
+        )}
       >
         {currentSelection.task ? (
           <TaskDetail
@@ -176,7 +179,11 @@ const App = ({
   );
 };
 
-const PipelineList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => {
+const PipelineList = ({
+  pipelinesJobsResult,
+  setCurrentSelection,
+  apiOpts,
+}) => {
   const { isLoading, isError, data, error } = pipelinesJobsResult;
 
   if (isLoading) {
@@ -204,10 +211,10 @@ const PipelineList = ({ pipelinesJobsResult, setCurrentSelection, apiOpts }) => 
 const PipelineListItem = ({ pipeline, setCurrentSelection, apiOpts }) => {
   const queryClient = useQueryClient();
   const startMutation = useMutation(postPipelinesSchedule(apiOpts), {
-    onSuccess: ({jobId}) => {
+    onSuccess: ({ jobId }) => {
       queryClient.invalidateQueries("pipelines/jobs");
 
-      setCurrentSelection({job: jobId, task: null});
+      setCurrentSelection({ job: jobId, task: null });
     },
   });
 
@@ -496,6 +503,66 @@ const LogOutputPanel = ({ output, label }) => (
   </div>
 );
 
+const JobDetail = ({
+  pipelinesJobsResult,
+  currentSelection,
+  apiOpts,
+  refreshInterval,
+}) => {
+  if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
+    return null;
+  }
+
+  const job = pipelinesJobsResult.data.jobs?.find(
+    (job) => job.id === currentSelection.job
+  );
+  if (!job) {
+    return null;
+  }
+
+  return (
+    <div className="">
+      <div className="text-2xl text-gray-300 mb-4">
+        <span>
+          <span className="text-white">Job</span>{" "}
+          <span className="text-blue">{job.pipeline}</span>
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-4 mb-8">
+        <div>
+          <span className="text-sm mr-2 text-blue">Created</span>
+          <span className="text-sm text-white mr-4">
+            {format(new Date(job.created), "HH:mm:ss")}
+          </span>
+        </div>
+        <div>
+          <span className="text-sm mr-2 text-blue">Start</span>
+          <span className="text-sm text-white mr-4">
+            {format(new Date(job.start), "HH:mm:ss")}
+          </span>
+        </div>
+        <div>
+          {job.end && (
+            <>
+              <span className="text-sm mr-2 text-blue">End</span>
+              <span className="text-sm text-white mr-4">
+                {format(new Date(job.end), "HH:mm:ss")}
+              </span>
+            </>
+          )}
+        </div>
+        <div>
+          <span className="text-sm mr-2 text-blue">Id</span>
+          <span className="text-sm text-white mr-4">{job.id}</span>
+        </div>
+      </div>
+
+      <JobTasksGraph job={job} />
+    </div>
+  );
+};
+
 const DEFAULT_NODE_CONFIG = {
   styles: {
     node: {
@@ -533,99 +600,72 @@ const DEFAULT_EDGE_CONFIG = {
   },
 };
 
-const JobDetail = ({
-  pipelinesJobsResult,
-  currentSelection,
-  apiOpts,
-  refreshInterval,
-}) => {
+const JobTasksGraph = ({ job }) => {
   // This is needed for DagreReact to force re-renderings if graph data changed
   const [stage, setStage] = useState(0);
   useEffect(() => {
     setStage(stage + 1);
-  }, [currentSelection.job, pipelinesJobsResult?.data?.jobs]);
+  }, [job]);
 
-  if (pipelinesJobsResult.isLoading || pipelinesJobsResult.isError) {
-    return null;
-  }
+  const [svgSize, setSvgSize] = useState({
+    width: 1000,
+    height: 1000,
+    actualWidth: "100%",
+  });
+  const svgContainer = useRef();
 
-  const job = pipelinesJobsResult.data.jobs?.find(
-    (job) => job.id === currentSelection.job
-  );
-  if (!job) {
-    return null;
-  }
-
-  const basic1 = {
-    nodes: job.tasks.map((task) => {
-      const [shapeClassName, labelClassName] = taskNodeShapeAndLabelClasses(
-        task.status
-      );
-      return {
-        id: task.name,
-        label: task.name,
-        styles: {
-          shape: {
-            className: shapeClassName,
-          },
-          label: {
-            className: labelClassName,
-          },
+  const nodes = job.tasks.map((task) => {
+    const [shapeClassName, labelClassName] = taskNodeShapeAndLabelClasses(
+      task.status
+    );
+    return {
+      id: task.name,
+      label: task.name,
+      styles: {
+        shape: {
+          className: shapeClassName,
         },
-      };
-    }),
-    edges: job.tasks.flatMap(
-      (task) =>
-        task.dependsOn?.map((previousTask) => ({
-          from: previousTask,
-          to: task.name,
-        })) ?? []
-    ),
-  };
+        label: {
+          className: labelClassName,
+        },
+      },
+    };
+  });
+  const edges = job.tasks.flatMap(
+    (task) =>
+      task.dependsOn?.map((previousTask) => ({
+        from: previousTask,
+        to: task.name,
+      })) ?? []
+  );
 
   return (
-    <div>
-      <div className="text-2xl text-gray-300 mb-4">
-        <span>
-          <span className="text-white">Job</span>{" "}
-          <span className="text-blue">{job.pipeline}</span>
-        </span>
-      </div>
-
-      <div className="flex flex-wrap gap-4 mb-8">
-        <div>
-          <span className="text-sm mr-2 text-blue">Created</span>
-          <span className="text-sm text-white mr-4">
-            {format(new Date(job.created), "HH:mm:ss")}
-          </span>
-        </div>
-        <div>
-          <span className="text-sm mr-2 text-blue">Start</span>
-          <span className="text-sm text-white mr-4">
-            {format(new Date(job.start), "HH:mm:ss")}
-          </span>
-        </div>
-        <div>
-          {job.end && (
-            <>
-              <span className="text-sm mr-2 text-blue">End</span>
-              <span className="text-sm text-white mr-4">
-                {format(new Date(job.end), "HH:mm:ss")}
-              </span>
-            </>
-          )}
-        </div>
-        <div>
-          <span className="text-sm mr-2 text-blue">Id</span>
-          <span className="text-sm text-white mr-4">{job.id}</span>
-        </div>
-      </div>
-
-      <svg width="100%" height="100%">
+    <div className="flex justify-center" ref={svgContainer}>
+      <svg
+        width={svgSize.actualWidth}
+        height="auto"
+        viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
+        preserveAspectRatio="xMinYMin meet"
+      >
         <DagreReact
           stage={stage}
-          nodes={basic1.nodes}
-          edges={basic1.edges}
+          nodes={nodes}
+          edges={edges}
+          graphLayoutComplete={(graphWidth, graphHeight) => {
+            // Do some trickery with the width attribute since doing this via CSS didn't work out:
+            // - If graph size exceeds the container size, it should scale down
+            // - If graph size is smaller than container, it should not scale up and we set an explicit width
+            let svgActualWidth = "100%";
+            const rect = svgContainer.current.getBoundingClientRect();
+            if (graphWidth < rect.width) {
+              svgActualWidth = `${graphWidth}px`;
+            }
+            setSvgSize({
+              width: graphWidth,
+              height: graphHeight,
+              actualWidth: svgActualWidth,
+            });
+          }}
           defaultNodeConfig={DEFAULT_NODE_CONFIG}
           defaultEdgeConfig={DEFAULT_EDGE_CONFIG}
         />
