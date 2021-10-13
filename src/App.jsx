@@ -7,7 +7,7 @@ import Spinner from "./components/Spinner";
 import classNames from "classnames";
 import useInterval from "./hooks/useInterval";
 import useHashParam from "use-hash-param";
-import { DagreReact } from "dagre-reactjs";
+import { DagreReact, Node, Rect } from "dagre-reactjs";
 
 const authHeader = (token) => {
   if (!token) {
@@ -170,6 +170,7 @@ const App = ({
           <JobDetail
             pipelinesJobsResult={pipelinesJobsResult}
             currentSelection={currentSelection}
+            setCurrentSelection={setCurrentSelection}
             apiOpts={apiOpts}
             refreshInterval={refreshInterval}
           />
@@ -506,6 +507,7 @@ const LogOutputPanel = ({ output, label }) => (
 const JobDetail = ({
   pipelinesJobsResult,
   currentSelection,
+  setCurrentSelection,
   apiOpts,
   refreshInterval,
 }) => {
@@ -558,7 +560,11 @@ const JobDetail = ({
         </div>
       </div>
 
-      <JobTasksGraph job={job} />
+      <JobTasksGraph
+        job={job}
+        currentSelection={currentSelection}
+        setCurrentSelection={setCurrentSelection}
+      />
     </div>
   );
 };
@@ -600,7 +606,57 @@ const DEFAULT_EDGE_CONFIG = {
   },
 };
 
-const JobTasksGraph = ({ job }) => {
+const NodeTextLabel = ({ currentSelection, setCurrentSelection, node }) => {
+  return (
+    <text
+      className={node.styles.label.className}
+      style={node.styles.label.styles || {}}
+    >
+      <a
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          console.debug("click", node.id);
+          setCurrentSelection({
+            job: currentSelection.job,
+            task: node.id,
+          });
+        }}
+      >
+        <tspan xmlSpace="preserve" dy="1em" x="1">
+          {node.label}
+        </tspan>
+      </a>
+    </text>
+  );
+};
+
+const renderNode =
+  ({ currentSelection, setCurrentSelection }) =>
+  (node, reportSize, valueCache) => {
+    return (
+      <Node
+        key={node.id}
+        node={node}
+        reportSize={reportSize}
+        valueCache={valueCache}
+        html={false}
+      >
+        {{
+          shape: (innerSize) => <Rect node={node} innerSize={innerSize} />,
+          label: () => (
+            <NodeTextLabel
+              currentSelection={currentSelection}
+              setCurrentSelection={setCurrentSelection}
+              node={node}
+            />
+          ),
+        }}
+      </Node>
+    );
+  };
+
+const JobTasksGraph = ({ job, currentSelection, setCurrentSelection }) => {
   // This is needed for DagreReact to force re-renderings if graph data changed
   const [stage, setStage] = useState(0);
   useEffect(() => {
@@ -651,6 +707,7 @@ const JobTasksGraph = ({ job }) => {
           stage={stage}
           nodes={nodes}
           edges={edges}
+          renderNode={renderNode({ currentSelection, setCurrentSelection })}
           graphLayoutComplete={(graphWidth, graphHeight) => {
             // Do some trickery with the width attribute since doing this via CSS didn't work out:
             // - If graph size exceeds the container size, it should scale down
