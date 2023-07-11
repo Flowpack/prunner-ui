@@ -284,6 +284,7 @@ const JobsListItem = ({
     },
   });
   const running = job.start && !job.end && !job.canceled;
+  const cancelable = !job.canceled && !job.end;
   const [now, setNow] = useState(Date.now());
 
   useInterval(
@@ -309,7 +310,7 @@ const JobsListItem = ({
         >
           {job.pipeline}
         </button>
-        {running && (
+        {cancelable && (
           <div className="float-right">
             <IconButton
               danger
